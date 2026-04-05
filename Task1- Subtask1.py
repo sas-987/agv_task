@@ -13,7 +13,6 @@ def detect_features(gray_frame, max_corners=150, quality=0.01,
 
 
 def _build_pyramid(img, levels):
-    """Gaussian image pyramid — coarse to fine."""
     pyr = [img]
     for _ in range(levels):
         pyr.append(cv2.pyrDown(pyr[-1]))
@@ -21,12 +20,6 @@ def _build_pyramid(img, levels):
 
 
 def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
-    """
-    Single-level Lucas-Kanade from scratch.
-    Brightness constancy: Ix*u + Iy*v + It = 0
-    Solve per-point window: (A^T A) [u,v]^T = A^T b
-   
-    """
     Ix = cv2.Sobel(prev, cv2.CV_64F, 1, 0, ksize=3)
     Iy = cv2.Sobel(prev, cv2.CV_64F, 0, 1, ksize=3)
     It = curr.astype(np.float64) - prev.astype(np.float64)
@@ -38,7 +31,6 @@ def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
     for i, (x, y) in enumerate(pts):
         x, y = int(round(x)), int(round(y))
 
-        # Window bounds
         x0, x1 = max(0, x - win_half), min(w, x + win_half + 1)
         y0, y1 = max(0, y - win_half), min(h, y + win_half + 1)
 
@@ -46,15 +38,12 @@ def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
         iy = Iy[y0:y1, x0:x1].ravel()
         it = It[y0:y1, x0:x1].ravel()
 
-        # Structure tensor  A^T A
         ATA = np.array([[np.dot(ix,ix), np.dot(ix,iy)],
                         [np.dot(ix,iy), np.dot(iy,iy)]])
 
-       
         if np.linalg.eigvalsh(ATA)[0] < tau:
             continue
 
-        # Solve (A^T A) * [u,v]^T = A^T b,  b = -It
         ATb = np.array([-np.dot(ix, it), -np.dot(iy, it)])
         flow = np.linalg.solve(ATA, ATb)
 
@@ -67,7 +56,6 @@ def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
 def lucas_kanade_flow(prev_gray, curr_gray, prev_pts,
                       win_size=(21, 21), max_level=3,
                       eps=0.03, max_iter=30):
-  
     win_half = win_size[0] // 2
     prev_pyr = _build_pyramid(prev_gray, max_level)
     curr_pyr = _build_pyramid(curr_gray, max_level)
@@ -75,19 +63,18 @@ def lucas_kanade_flow(prev_gray, curr_gray, prev_pts,
     pts  = prev_pts.reshape(-1, 2).astype(np.float32)
     flow = np.zeros_like(pts)
 
-    # Coarse → fine
     for level in range(max_level, -1, -1):
         s       = 1.0 / (2 ** level)
-        pts_l   = pts * s          # scale points to this level
-        guess_l = pts_l + flow     # add accumulated flow guess
+        pts_l   = pts * s
+        guess_l = pts_l + flow
 
         new_pts, valid = _lk_single_level(
             prev_pyr[level], curr_pyr[level],
             guess_l, win_half=win_half
         )
 
-        delta = new_pts - pts_l    # flow increment at this level
-        flow  = delta * 2 if level > 0 else delta   # propagate up
+        delta = new_pts - pts_l
+        flow  = delta * 2 if level > 0 else delta
 
     curr_pts  = pts + flow
     good_prev = pts[valid]
@@ -97,8 +84,8 @@ def lucas_kanade_flow(prev_gray, curr_gray, prev_pts,
 
 
 def draw_sparse_flow(frame, good_prev, good_curr,
-                     trail_canvas, point_color=(0, 255, 0),
-                     arrow_color=(0, 200, 255), radius=4,
+                     trail_canvas, point_color=(0, 100, 255),
+                     arrow_color=(255, 50, 200), radius=4,
                      scale=2.0):
     out = frame.copy()
 
@@ -119,13 +106,12 @@ def draw_sparse_flow(frame, good_prev, good_curr,
 
 
 def dense_optical_flow(prev_gray, curr_gray):
-    # Downscale before computing — much faster
     small_prev = cv2.resize(prev_gray, (0, 0), fx=0.5, fy=0.5)
     small_curr = cv2.resize(curr_gray, (0, 0), fx=0.5, fy=0.5)
 
     flow = cv2.calcOpticalFlowFarneback(
         small_prev, small_curr, None,
-        pyr_scale=0.5, levels=2, winsize=11,   # fewer levels, smaller window
+        pyr_scale=0.5, levels=2, winsize=11,
         iterations=2, poly_n=5, poly_sigma=1.1, flags=0,
     )
 
@@ -137,14 +123,11 @@ def dense_optical_flow(prev_gray, curr_gray):
     hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
 
     bgr_small = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    # Scale back up to original size
     return cv2.resize(bgr_small, (prev_gray.shape[1], prev_gray.shape[0]))
-
 
 
 def run_on_video(video_path, win_size=(25, 25), max_level=2,
                  redetect_interval=15, scale=0.35):
- 
     cap = cv2.VideoCapture(video_path)
     assert cap.isOpened(), f"Cannot open {video_path}"
 
@@ -154,7 +137,6 @@ def run_on_video(video_path, win_size=(25, 25), max_level=2,
     if not ret:
         raise RuntimeError("Could not read first frame.")
 
-    # Resize frame for speed
     frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
     prev_gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -190,7 +172,9 @@ def run_on_video(video_path, win_size=(25, 25), max_level=2,
                     (10, 24), cv2.FONT_HERSHEY_SIMPLEX,
                     0.6, (255, 255, 255), 2)
 
-        combined = np.hstack([sparse_vis, dense_vis])
+        h, w = sparse_vis.shape[:2]
+        dense_vis = cv2.resize(dense_vis, (w, h))
+        combined = np.vstack([sparse_vis, dense_vis])
         cv2.imshow("Optical Flow  |  press Q to quit", combined)
 
         if cv2.waitKey(wait_ms) & 0xFF == ord('q'):
@@ -208,7 +192,6 @@ def run_on_video(video_path, win_size=(25, 25), max_level=2,
     cv2.destroyAllWindows()
 
 
-# ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import sys
 
