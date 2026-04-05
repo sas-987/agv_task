@@ -25,7 +25,7 @@ def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
     Single-level Lucas-Kanade from scratch.
     Brightness constancy: Ix*u + Iy*v + It = 0
     Solve per-point window: (A^T A) [u,v]^T = A^T b
-    tau = eigenvalue threshold from Capito et al. / medium article.
+   
     """
     Ix = cv2.Sobel(prev, cv2.CV_64F, 1, 0, ksize=3)
     Iy = cv2.Sobel(prev, cv2.CV_64F, 0, 1, ksize=3)
@@ -50,7 +50,7 @@ def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
         ATA = np.array([[np.dot(ix,ix), np.dot(ix,iy)],
                         [np.dot(ix,iy), np.dot(iy,iy)]])
 
-        # Eigenvalue threshold τ — skip flat/edge regions
+       
         if np.linalg.eigvalsh(ATA)[0] < tau:
             continue
 
@@ -67,10 +67,7 @@ def _lk_single_level(prev, curr, pts, win_half=10, tau=1e-2):
 def lucas_kanade_flow(prev_gray, curr_gray, prev_pts,
                       win_size=(21, 21), max_level=3,
                       eps=0.03, max_iter=30):
-    """
-    Pyramidal Lucas-Kanade — from scratch, no cv2.calcOpticalFlowPyrLK.
-    Coarse-to-fine: solve at each pyramid level and propagate flow up.
-    """
+  
     win_half = win_size[0] // 2
     prev_pyr = _build_pyramid(prev_gray, max_level)
     curr_pyr = _build_pyramid(curr_gray, max_level)
@@ -144,12 +141,10 @@ def dense_optical_flow(prev_gray, curr_gray):
     return cv2.resize(bgr_small, (prev_gray.shape[1], prev_gray.shape[0]))
 
 
-# CHANGED: max_level from 3 to 2, and scale from 0.50 to 0.35 to speed up the math overhead
+
 def run_on_video(video_path, win_size=(25, 25), max_level=2,
                  redetect_interval=15, scale=0.35):
-    """
-    scale : resize factor for display speed (0.35 = lower resolution, much faster)
-    """
+ 
     cap = cv2.VideoCapture(video_path)
     assert cap.isOpened(), f"Cannot open {video_path}"
 
